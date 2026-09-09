@@ -90,8 +90,9 @@ jobs:
           gh release create "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Handball Keeper v${VERSION_NAME}" \
-            --notes "Android APK — signed release build.
-Version: v${VERSION_NAME}.
+            --notes "Android APK - signed release build.
+            Version: v${VERSION_NAME}.
 
-Install: open this APK on your Android phone. Updates install over previous versions automatically." \
+            Install: open this APK on your Android phone. Updates install over
+            previous versions automatically." \
             "android/app/build/outputs/apk/release/app-release.apk"
