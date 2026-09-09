@@ -5,9 +5,17 @@ on:
   push:
     branches: [main]
 
+# Allow writing releases so we can publish the APK
+permissions:
+  contents: write
+
+env:
+  VERSION_NAME: "1.0.${{ github.run_number }}"
+  VERSION_CODE: ${{ github.run_number }}
+
 jobs:
   build-apk:
-    name: Build Android APK (debug)
+    name: Build signed Android APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -42,14 +50,48 @@ jobs:
       - name: Sync Capacitor (copy dist into android/)
         run: npx cap sync android
 
-      - name: Build debug APK
+      - name: Restore release signing keystore
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/handballkeeper-release.jks"
+          echo "Keystore restored"
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+
+      - name: Build signed release APK
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
         working-directory: android
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/handballkeeper-release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          VERSION_CODE: ${{ env.VERSION_CODE }}
+          VERSION_NAME: ${{ env.VERSION_NAME }}
 
-      - name: Upload APK artifact
+      - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: handball-keeper-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: handball-keeper-release-v${{ env.VERSION_NAME }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Publish APK to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ env.VERSION_NAME }}
+        run: |
+          set -e
+          RELEASE_TAG="latest"
+          # The release is intentionally re-created on every build so the
+          # download URL below stays permanent:
+          #   .../releases/download/latest/app-release.apk
+          gh release delete "$RELEASE_TAG" --yes --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Handball Keeper v${VERSION_NAME}" \
+            --notes "Android APK — signed release build.
+Version: v${VERSION_NAME}.
+
+Install: open this APK on your Android phone. Updates install over previous versions automatically." \
+            "android/app/build/outputs/apk/release/app-release.apk"

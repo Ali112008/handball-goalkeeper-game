@@ -270,6 +270,9 @@ kbd {
 .btn-lg { padding: 16px 38px; font-size: 18px; min-height: 52px; }   /* الزر الكبير */
 .btn-icon { padding: 10px 14px; font-size: 16px; background: var(--bg-panel-solid); }
 
+/* APK download link styled like an icon button */
+a.btn, a.btn-icon { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+
 /* ===== شريط التحكم ===== */
 .controls {
     margin-top: 12px;
