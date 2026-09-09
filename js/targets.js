@@ -32,7 +32,10 @@ class TargetManager {
 
     /** إنفجار رموز تعبيرية (زخرفي) — للاحتفالات فقط. */
     emojiBurst(x, y, emojis, count = 8) {
-        for (let i = 0; i < count; i++) {
+        // Perf cap: never let celebrations pile up and lag the frame.
+        if (this.emoji.length > 40) this.emoji.splice(0, this.emoji.length - 40);
+        const n = Math.min(count, 12);
+        for (let i = 0; i < n; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = 1 + Math.random() * 2.5;
             this.emoji.push({
@@ -80,6 +83,13 @@ class TargetManager {
         // لا تولد أي أهداف إذا كانت اللعبة متوقفة أو لم تبدأ
         if (!this.game.gameActive) return;
 
+        // Perf cap: max simultaneous targets (fewer on mobile = less overdraw).
+        const maxTargets = this.game.isMobileLayout ? 4 : 7;
+        if (this.targets.length >= maxTargets) {
+            this.game.lastTargetSpawn = timestamp;
+            return;
+        }
+
         // هل مضى وقت كافٍ (targetSpawnRate) منذ آخر توليد؟
         if (timestamp - this.game.lastTargetSpawn > this.game.targetSpawnRate) {
             this.targets.push(this.createRandomTarget()); // أضف هدفاً جديداً للمصفوفة
@@ -103,8 +113,11 @@ class TargetManager {
      * الـ padding يمنع ظهور الأهداف ملاصقة لقائم المرمى.
      */
     createRandomTarget() {
-        const s = Math.max(this.game.contentScale, 1.0);
-        const padding = 26 * s; // مسافة أمان من حواف المرمى (تتدرج مع الحجم)
+        // Touch-first sizing: guarantee ~44px CSS touch diameter on phones.
+        // contentScale already includes dpr, so s*dpr math gives CSS size.
+        const mobile = !!this.game.isMobileLayout;
+        const s = Math.max(this.game.contentScale, 1.0) * (mobile ? 1.9 : 1.15);
+        const padding = (mobile ? 34 : 30) * Math.max(this.game.contentScale, 1.0);
         const x = this.game.goalX + padding + Math.random() * (this.game.goalWidth - padding * 2);
         const y = this.game.goalY + padding + Math.random() * (this.game.goalHeight - padding * 2);
 
@@ -119,12 +132,13 @@ class TargetManager {
         // 📚 درس — حجم هدف يتكيف مع كل شاشة:
         // نضرب نصف القطر بمقياس المحتوى contentScale (المشتق من حجم
         // الشاشة) مع حد أدنى حتى تبقى الأهداف كبيرة وسهلة اللمس حتى على
-        // الشاشات الصغيرة.
+        // الشاشات الصغيرة. على الهاتف نضاعف تقريباً (×1.9) لنصل
+        // لقطر لمس ~44px CSS.
         // خصائص كل نوع: الحجم، الألوان، والنقاط
         const base = {
             good:  { radius: 17 * s, color: '#00e5a0', inner: '#7dffd0', points: 10 },
-            bad:   { radius: 14 * s, color: '#ff4757', inner: '#ff8a94', points: -5 },
-            bonus: { radius: 15 * s, color: '#ffd700', inner: '#fff3b0', points: 25 }
+            bad:   { radius: 14.5 * s, color: '#ff4757', inner: '#ff8a94', points: -5 },
+            bonus: { radius: 16 * s, color: '#ffd700', inner: '#fff3b0', points: 25 }
         }[type]; // 📚 درس: اختيار قيمة من كائن باستخدام متغير — {good:{...}}[type]
 
         // 📚 درس — الكائن المُعاد (Object Literal):
@@ -210,13 +224,14 @@ class TargetManager {
             const r = target.radius * scale;   // نصف القطر الفعلي بعد التقلص
 
             // الكرات الذهبية تحصل على توهج (glow) خاص
-            // 📚 درس — ctx.save() و ctx.restore():
-            // save تحفظ حالة الفرشاة الحالية، و restore تعيدها.
-            // نستخدمها حتى لا يؤثر التوهج على باقي الرسومات!
+            // 📚 ملاحظة أداء: توقّفنا عن ctx.shadowBlur (مكلف جداً على
+            // الهواتف). نرسم بدلاً منه حلقة ذهبية شفافة خلف الكرة —
+            // مظهر توهج قريب مع أداء أفضل بمراحل.
             if (target.type === 'bonus') {
-                ctx.save();
-                ctx.shadowColor = '#ffd700';
-                ctx.shadowBlur = 18;
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, r + 6, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 215, 0, 0.18)';
+                ctx.fill();
             }
 
             // رسم الدائرة الخارجية للهدف:
@@ -229,8 +244,6 @@ class TargetManager {
             ctx.strokeStyle = 'rgba(255,255,255,0.9)'; // لون الحدود
             ctx.lineWidth = 2;                 // سماكة الحدود
             ctx.stroke();                      // ارسم الحدود
-
-            if (target.type === 'bonus') ctx.restore(); // أزل التوهج بعد الكرة الذهبية
 
             // الدائرة الداخلية (تصميم الكرة — حلقة داخلية أفتح)
             ctx.beginPath();
@@ -303,7 +316,9 @@ class TargetManager {
         // نبحث من آخر هدف (الأحدث) لأنه المرسوم فوق الجميع
         for (let i = this.targets.length - 1; i >= 0; i--) {
             const t = this.targets[i];
-            const distance = Math.hypot(x - t.x, y - t.y);
+            // Perf: squared distance avoids Math.hypot sqrt per target.
+            const dx = x - t.x;
+            const dy = y - t.y;
 
             // 📚 منطقة لمس سخية (Generous Touch Area):
             // الأصابع لا تنقر بدقة أكيدة، فنجعل منطقة الإصابة أكبر
@@ -311,9 +326,9 @@ class TargetManager {
             // كانفاس × دقة الجهاز حتى يبقى حجمُ اللمس مناسباً للأصابع
             // (حوالي 44 بكسل CSS) حتى لو تقلص الهدف أو كان صغيراً.
             const visualR = t.radius * this.targetScale(t);
-            const hitRadius = Math.max(visualR * 1.7, this.game.dpr * 22);
+            const hitRadius = Math.max(visualR * 1.6, this.game.dpr * 24);
 
-            if (distance <= hitRadius) {
+            if (dx * dx + dy * dy <= hitRadius * hitRadius) {
                 this.game.registerHit(t, x, y);  // أبلغ اللعبة بالإصابة (تحسب النقاط)
                 this.targets.splice(i, 1);       // 📚 splice يحذف عنصراً من المصفوفة
                 return true;
@@ -332,7 +347,11 @@ class TargetManager {
      * cos للاتجاه الأفقي و sin للاتجاه العمودي.
      */
     burst(x, y, color, count = 14) {
-        for (let i = 0; i < count; i++) {
+        // Perf cap: drop oldest particles instead of unbounded growth.
+        if (this.particles.length > 160) this.particles.splice(0, this.particles.length - 160);
+        if (this.floatTexts.length > 20) this.floatTexts.splice(0, this.floatTexts.length - 20);
+        const n = Math.min(count, 16);
+        for (let i = 0; i < n; i++) {
             const angle = Math.random() * Math.PI * 2;   // زاوية عشوائية
             const speed = 1.5 + Math.random() * 3.5;       // سرعة عشوائية
             this.particles.push({

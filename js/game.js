@@ -275,7 +275,15 @@ class HandballGoalkeeperGame {
         // الكانفاس هو "لوحة رسم" 800×600 بكسل، و ctx هو
         // "الفرشاة" التي نرسم بها عليها (دوائر، خطوط، نصوص...)
         this.canvas = document.getElementById('gameCanvas');
-        this.ctx = this.canvas.getContext('2d');
+        // Perf: opaque canvas (no alpha) composites faster on mobile GPUs.
+        this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
+        // 📚 تحسين الأداء — كانفاس احتياطي للخلفية الثابتة (Offscreen):
+        // المرمى والشبكة والأرضية وخلفية الملعب ثابتة لا تتغير بين
+        // الإطارات. نرسمها مرة واحدة فقط على كانفاس مخفي، ثم كل إطار
+        // "نلصقها" بلوحة الرسم بـ drawImage (عملية سريعة جداً) بدلاً
+        // من إعادة رسم التدرجات والجمهور والشبكة 60 مرة في الثانية.
+        this.goalCache = document.createElement('canvas');
+        this.goalCacheCtx = this.goalCache.getContext('2d');
         this.scoreElement = document.getElementById('score');           // عنصر النقاط
         this.timeElement = document.getElementById('time');               // عنصر الوقت
         this.streakElement = document.getElementById('streak');          // عنصر السلسلة
@@ -358,7 +366,15 @@ class HandballGoalkeeperGame {
         // = عادة 2 أو 3). لذلك نضبط الحجم الداخلي على حجم العرض الفعلي ×
         // دقة الجهاز، ثم نرسم المرمى والأهداف بنِسَبٍ من الحجم لا بأرقام
         // ثابتة — فيكبر كل شيء تلقائياً على الشاشات الكبيرة.
-        this.dpr = window.devicePixelRatio || 1;
+        // 📚 تحسين الأداء — تحديد أعلى دقة (DPR):
+        // هواتف كثيرة تعرض بـ devicePixelRatio = 3 (أحياناً 4).
+        // مزدوجة الدقة تعني 9 أضعاف عدد البكسلات التي يرسمها
+        // الكانفاس كل إطار! نخفض للهواتف إلى 1.25 (توفير ~30%
+        // بكسلات مقابل 1.5 بدون فرق مرئي للأشكال البسيطة).
+        const isNarrow = window.innerWidth <= 520;
+        const maxDpr = isNarrow ? 1.25 : 1.75;
+        this.dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+        this.isMobileLayout = isNarrow;
         this.resizeCanvas();
 
         // ---------- 4) إنشاء المديرين ----------
@@ -389,6 +405,10 @@ class HandballGoalkeeperGame {
         this.cssWidth = rect.width;      // العرض ببكسل CSS (نسباً للحسابات)
         this.cssHeight = rect.height;
         this.computeGoal();
+        // أعد ضبط حجم الكانفاس الاحتياطي ليطابق الجديد (يتطلب إعادة رسم)
+        this.goalCache.width = w;
+        this.goalCache.height = h;
+        this._goalDirty = true;
     }
 
     /**
@@ -398,15 +418,34 @@ class HandballGoalkeeperGame {
      * (الأهداف والنصوص والخطوط) حسب حجم الشاشة بالنسبة للتصميم المرجعي 600px.
      */
     computeGoal() {
-        this.goalWidth = this.width * 0.62;    // المرمى يأخذ 62% من العرض
-        this.goalHeight = this.height * 0.56;  // و56% من الارتفاع
-        this.goalX = (this.width - this.goalWidth) / 2;
-        this.goalY = this.height * 0.06;       // قليل من الهامش أعلى المرمى
+        // Mobile portrait: fill almost the whole canvas so there is no
+        // dead black space on the sides / between goal and floor.
+        // Desktop: also larger than before (was 62%x56% — too tight).
+        const narrow = (this.cssWidth || window.innerWidth) <= 520;
+        this.isMobileLayout = narrow;
+        // Anchor goal bottom just above the floor so no dead gap:
+        // goalBottom = height - floorH - gap
+        const floorFrac = narrow ? 0.10 : 0.14;
+        const gapFrac = 0.02;
+        if (narrow) {
+            this.goalWidth = this.width * 0.92;
+            this.goalX = (this.width - this.goalWidth) / 2;
+            this.goalY = this.height * 0.03;
+            this.goalHeight = this.height * (1 - 0.03 - floorFrac - gapFrac);
+        } else {
+            this.goalWidth = this.width * 0.80;
+            this.goalX = (this.width - this.goalWidth) / 2;
+            this.goalY = this.height * 0.05;
+            this.goalHeight = this.height * (1 - 0.05 - floorFrac - gapFrac);
+        }
+        this.floorFrac = floorFrac;
         // 📚 مقياس المحتوى: يحوّل أحجام العناصر من "بكسل كانفاس" إلى
         // حجم معقول على الشاشة. canvas بكسل = CSS بكسل × dpr، لنضرب بدقة
         // الجهاز حتى تظهر الأهداف والخطوط بحجم واحد واضح على كل المقاسات.
         // (كلما كانت أصغر شاشة أصغر، نكبر قليلاً لنحافظ على سهولة اللمس)
-        this.contentScale = this.dpr * Math.min(this.cssWidth, this.cssHeight) / 600;
+        const minDim = Math.min(this.cssWidth || 600, this.cssHeight || 600);
+        // Clamp so tiny phones don't shrink content to unreadable size.
+        this.contentScale = this.dpr * Math.max(minDim / 600, 0.72);
     }
 
     /** ربط كل أحداث الواجهة (الأزرار، النقر، لوحة المفاتيح). */
@@ -423,7 +462,8 @@ class HandballGoalkeeperGame {
         // 📚 درس مهم — Pointer Events بدلاً من click:
         // الحدث pointerdown يعمل مع الماوس واللمس والقلم معاً،
         // وينطلق فوراً على الهاتف (حدث click التقليدي يتأخر ~300ms!).
-        this.canvas.addEventListener('pointerdown', (event) => this.handleCanvasClick(event));
+        // passive:false حتى يعمل preventDefault (منع التكبير/التمرير).
+        this.canvas.addEventListener('pointerdown', (event) => this.handleCanvasClick(event), { passive: false });
         // منع النقرات المزدوجة / القوائم السياقية من إزعاج اللاعب
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -444,12 +484,34 @@ class HandballGoalkeeperGame {
         });
 
         // 📚 درس — إعادة الضبط عند تغيير الحجم/تدوير الجهاز:
-        // لو أدار المستخدم هاتفه أو غيّر حجم النافذة، نعيد ضبط
-        // أبعاد الكانفاس وموقع المرمى ليلائما الجديد فوراً.
+        // Debounce: إعادة تخصيص الكانفاس مكلفة — ننتظر توقف التغيير.
+        let resizeTimer = null;
         window.addEventListener('resize', () => {
-            this.resizeCanvas();
-            if (this.gameActive) this.drawGoal();
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                const isNarrow = window.innerWidth <= 520;
+                const maxDpr = isNarrow ? 1.25 : 1.75;
+                this.dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+                this.resizeCanvas();
+                this.drawGoal();
+            }, 150);
         });
+        // ResizeObserver: يلتقط تغيّر حجم الكانفاس الفعلي (مثل ظهور
+        // شريط المتصفح على الهاتف) بدون انتظار حدث resize.
+        if ('ResizeObserver' in window) {
+            let roTimer = null;
+            const ro = new ResizeObserver(() => {
+                clearTimeout(roTimer);
+                roTimer = setTimeout(() => {
+                    const prevW = this.width, prevH = this.height;
+                    this.resizeCanvas();
+                    if (this.canvas.width !== prevW || this.canvas.height !== prevH) {
+                        this.drawGoal();
+                    }
+                }, 150);
+            });
+            ro.observe(this.canvas);
+        }
     }
 
     /** بدء جولة جديدة (تصفير الحالة ثم العد التنازلي). */
@@ -795,7 +857,9 @@ class HandballGoalkeeperGame {
 
     /** احتفال مؤقّت: رموز تطير + تعليق (لا يغيِّر اللعب). */
     celebrate(x, y, emojis, count, tauntKind) {
-        this.targetManager.emojiBurst(x, y, emojis, count);
+        // Perf: emoji fillText is expensive on mobile — halve the count.
+        const c = this.isMobileLayout ? Math.ceil(count / 2) : count;
+        this.targetManager.emojiBurst(x, y, emojis, c);
         if (tauntKind) this.showTaunt(tauntKind, 250);
     }
 
@@ -886,8 +950,11 @@ class HandballGoalkeeperGame {
             const gained = target.points * mult;   // النقاط بعد المضاعفة!
 
             this.score += gained;                  // أضفها للرصيد
-            // مؤثر الانفجار: جزيئات أكثر للكرة الذهبية (26 مقابل 16)
-            tm.burst(x, y, target.color, target.type === 'bonus' ? 26 : 16);
+            // مؤثر الانفجار: جزيئات أكثر للكرة الذهبية (مخفّضة على الهاتف)
+            const burstN = target.type === 'bonus'
+                ? (this.isMobileLayout ? 14 : 26)
+                : (this.isMobileLayout ? 9 : 16);
+            tm.burst(x, y, target.color, burstN);
             // نص طائر "+10" أو "+20 x2" فوق مكان الإصابة
             // 📚 درس — Template Literals (النصوص بين `):
             // تسمح بتضمين المتغيرات مباشرة: `+${gained}`
@@ -920,7 +987,7 @@ class HandballGoalkeeperGame {
             // ---------- كرة حمراء: عقوبة! ----------
             this.streak = 0;                    // السلسلة تنكسر (هذا هو العقاب الحقيقي)
             this.score += target.points;        // points سالب (-5) فالجمع ينقص!
-            tm.burst(x, y, target.color, 12);
+            tm.burst(x, y, target.color, this.isMobileLayout ? 7 : 12);
             tm.addFloatText(x, y - 18, `${target.points}`, '#ff8a94', 20);
             this.flash('red');                   // وميض أحمر
             this.shakeScreen(true);              // واهتزاز قوي!
@@ -972,7 +1039,7 @@ class HandballGoalkeeperGame {
         const timeScale = this.slowmoActive ? 0.5 : 1;
 
         this.clearCanvas();                              // 1) امسح
-        this.drawGoal();                                 // 2) الخلفية
+        this.blitGoal();                                 // 2) الخلفية (من الكاش — سريع)
         this.targetManager.updateTargets(timeScale);     // 3) حدّث
         this.targetManager.spawnTargets(timestamp);      // 4) ولّد
         this.targetManager.drawTargets();               // 5) ارسم
@@ -989,13 +1056,27 @@ class HandballGoalkeeperGame {
     /**
      * رسم المرمى والشبكة والأرضية وخلفية الملعب.
      *
+     * 📚 تحسين الأداء: نرسم الخلفية الثابتة مرة واحدة على الكانفاس
+     * الاحتياطي (goalCache) بدلاً من كل إطار. الطريقة drawGoal تبنى
+     * الخلفية في الكاش (مرة واحدة)، بينما blitGoal تلصقها على الشاشة
+     * بسرعة عند الحاجة.
+     *
      * 📚 درس — ترتيب الرسم مهم! (مبدأ الطبقات):
      * نرسم الخلفية أولاً ثم ما فوقها — تماماً كالرسام:
      * من يُرسم أولاً يختفي تحت من يُرسم بعده.
      * لذلك: الخلفية → الأرضية → الشبكة → القوائم.
      */
     drawGoal() {
-        const ctx = this.ctx;
+        if (this._goalDirty) {
+            this.renderGoalToCache();
+            this._goalDirty = false;
+        }
+        this.blitGoal();
+    }
+
+    /** إعادة بناء لوحة الخلفية الثابتة في الكاش (تحدث عند تغيّر الحجم فقط). */
+    renderGoalToCache() {
+        const ctx = this.goalCacheCtx;
 
         // 1) خلفية متدرجة (سماء الصالة) — 📚 createLinearGradient
         // يحول التدرج من لون عند نقطة لأخرى (هنا: من أعلى لأسفل)
@@ -1005,11 +1086,12 @@ class HandballGoalkeeperGame {
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, this.width, this.height);   // املأ الشاشة كلها
 
-        // 2) نقاط "الجمهور" الباهتة للأجواء
+        // 2) نقاط "الجمهور" الباهتة للأجواء (مخفّضة للهاتف لتوفير الرسم)
         // 📚 درس — حيلة (i * 137) % width: توليد مواقع "شبه عشوائية"
         // ثابتة بنمط متكرر — تبدو كجمهور من بعيد بدون حسابات عشوائية!
         ctx.fillStyle = 'rgba(255,255,255,0.05)';   // rgba: شفافية 5% فقط
-        for (let i = 0; i < 60; i++) {
+        const crowdCount = this.isMobileLayout ? 28 : 60;
+        for (let i = 0; i < crowdCount; i++) {
             const cx = (i * 137) % this.width;
             const cy = (i * 89) % Math.max(1, this.height * 0.16);
             ctx.beginPath();
@@ -1018,7 +1100,7 @@ class HandballGoalkeeperGame {
         }
 
         // 3) أرضية الملعب (أزرق) مع خط أبيض عريض في حدها
-        const floorH = this.height * 0.15;            // نسبة من الارتفاع
+        const floorH = this.height * (this.floorFrac || 0.14);
         ctx.fillStyle = '#1d4e89';
         ctx.fillRect(0, this.height - floorH, this.width, floorH);
         ctx.fillStyle = 'rgba(255,255,255,0.08)';
@@ -1038,7 +1120,10 @@ class HandballGoalkeeperGame {
         // moveTo بداية الخط، lineTo نهايته، stroke يرسمه.
         ctx.strokeStyle = 'rgba(255,255,255,0.22)';
         ctx.lineWidth = 1;
-        const step = Math.max(18, this.width * 0.033);   // مسافة كل خلية (نسبة من العرض)
+        // Fewer grid lines on mobile = less overdraw + cleaner look.
+        const step = this.isMobileLayout
+            ? Math.max(26, this.width * 0.055)
+            : Math.max(20, this.width * 0.04);
         for (let x = this.goalX + step; x < this.goalX + this.goalWidth; x += step) {
             ctx.beginPath();
             ctx.moveTo(x, this.goalY);
@@ -1062,6 +1147,11 @@ class HandballGoalkeeperGame {
         ctx.strokeStyle = 'rgba(0,0,0,0.4)';
         ctx.lineWidth = 1;
         ctx.strokeRect(this.goalX - frame, this.goalY - frame, this.goalWidth + frame * 2, this.goalHeight + frame * 2);
+    }
+
+    /** لصق الخلفية الثابتة على الشاشة (عملية سريعة). */
+    blitGoal() {
+        this.ctx.drawImage(this.goalCache, 0, 0, this.width, this.height);
     }
 
     /**
