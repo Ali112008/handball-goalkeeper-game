@@ -61,6 +61,25 @@ The game targets phones; keep it smooth. Known expensive things to avoid:
 This repo auto-deploys to Vercel on push to `main`. Commit to `main` to ship
 changes. Local Vercel config (`.vercel/`) is gitignored.
 
+## Android APK (signed release)
+
+- Every push to `main` also triggers `.github/workflows/build-apk.yml`, which
+  builds a **signed release APK**, publishes it to the GitHub Release tag
+  `latest`, and shows a 📲 download button in the web UI.
+- Permanent install URL (always the newest build, no login required):
+  `https://github.com/Ali112008/handball-goalkeeper-game/releases/download/latest/app-release.apk`
+- Version is auto-incremented per build via `github.run_number` (Gradle reads
+  `VERSION_CODE`/`VERSION_NAME` env vars). This is what lets Android users
+  update over a previous install without uninstalling.
+- Signing identity lives in GitHub secrets (RELEASE_KEYSTORE_BASE64,
+  RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD) and a
+  password-protected copy at `..\release-signing-backup\`
+  (`handballkeeper-release.jks`). **Never lose the keystore/text — losing it
+  permanently breaks updates.** Never commit the keystore (it's gitignored).
+- Do NOT re-enter the `run: |` block scalar lines at column 0 in YAML
+  (line 1 indent required) — GitHub rejects the workflow instantly with 0 jobs;
+  validate with actionlint before pushing.
+
 ## Secrets
 
 Never commit tokens or keys. There is an env file (`github and vercel info.env`)
