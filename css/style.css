@@ -379,71 +379,92 @@ kbd {
    هنا: "إذا كان عرض الشاشة 520 بكسل أو أقل" طبق ما يلي —
    أي هواتف صغيرة فقط، الشاشات الكبيرة لا تتأثر إطلاقاً. */
 @media (max-width: 520px) {
-    /* dvh = dynamic viewport height: يتجاهل شريط عنوان المتصفح المتحرك
-       فيملأ الهاتف فعلاً بدون تمرير زائد. */
+    /* NO-SCROLL layout: everything must fit in 100dvh exactly.
+       html/body locked, container fixed height, game-area shrinks. */
+    html, body {
+        height: 100vh;
+        height: 100dvh;
+        min-height: 100vh;
+        min-height: 100dvh;
+        max-height: 100vh;
+        max-height: 100dvh;
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
     body {
         padding: 6px;
         align-items: stretch;
+        justify-content: flex-start;
+        display: flex;
+        min-height: 100vh;
         min-height: 100dvh;
-        overscroll-behavior: none;
     }
-    html, body { height: auto; min-height: 100dvh; }
 
-    /* الحاوية أصبحت عموداً يملأ الشاشة كاملة، والمنطقة الوسطى
-       تتمدد لتستهلك كل المساحة الفارغة المتبقية (صفر هدر!) */
     .game-container {
         padding: 8px;
         border-radius: 12px;
         display: flex;
         flex-direction: column;
-        min-height: calc(100dvh - 12px);
-        height: auto;
+        /* Fixed viewport height — never taller (no page scroll). */
+        height: calc(100vh - 12px);
+        height: calc(100dvh - 12px);
+        min-height: 0;
+        max-height: calc(100vh - 12px);
+        max-height: calc(100dvh - 12px);
         overflow: hidden;
-        /* Perf: ظل أخف على الهاتف (box-shadow الكبير مكلف في الرسم) */
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     }
-    .hud { flex: 0 0 auto; margin-bottom: 8px; }   /* HUD ثابت في الأعلى */
-    .controls { flex: 0 0 auto; }     /* وشريط التحكم ثابت في الأسفل */
+    .hud { flex: 0 0 auto; margin-bottom: 6px; }
+    .controls { flex: 0 0 auto; }
 
-    /* منطقة اللعب تتمدد لتأخذ كل المساحة المتبقية بينهما.
-       min-height يضمن مساحة لعب كبيرة حتى مع أزرار التحكم. */
+    /* game-area takes REMAINING space only (min-height:0 lets it shrink). */
     .game-area {
         flex: 1 1 auto;
-        min-height: 52dvh;
+        min-height: 0;
         display: block;
         position: relative;
+        overflow: hidden;
     }
 
-    /* الكانفاس يملأ المنطقة كلها (عرضاً وارتفاعاً) — فيكبر المرمى
-       والأهداف ليملآا شاشة الهاتف بدلاً من بقاء صندوق 4:3 صغير.
-       الحجم الداخلي يضبطه الجافاسكريبت (resizeCanvas) تلقائياً. */
+    /* Canvas fills game-area exactly — JS resizeCanvas() syncs pixels. */
     #gameCanvas {
         width: 100%;
         height: 100%;
-        min-height: 52dvh;
-        aspect-ratio: auto;   /* نتخلى عن نسبة 4:3 الثابتة حتى نملأ الارتفاع */
-        max-height: none;
+        min-height: 0;
+        aspect-ratio: auto;
+        max-height: 100%;
+        display: block;
     }
 
-    /* HUD: 4 أعمدة لكن بحشوة أكبر للقراءة + أرقام أوضح */
-    .hud { grid-template-columns: repeat(4, 1fr); gap: 6px; }
-    .hud-item { padding: 8px 4px; border-radius: 10px; }
-    .hud-label { font-size: 10px; letter-spacing: 0.8px; }
-    .hud-value { font-size: 19px; line-height: 1.1; }
+    /* Compact HUD so more height stays for play. */
+    .hud { grid-template-columns: repeat(4, 1fr); gap: 5px; }
+    .hud-item { padding: 6px 2px; border-radius: 10px; min-width: 0; }
+    .hud-label { font-size: 9px; letter-spacing: 0.6px; }
+    .hud-value { font-size: 17px; line-height: 1.1; }
+    .timer-bar-wrap { height: 3px; margin-top: 3px; }
 
-    /* التحكم: صف واحد للأزرار + صف مدمج للإعدادات — يوفّر
-       مساحة عمودية لمنطقة اللعب بدل تكديس عمودي طويل. */
-    .controls { flex-direction: column; align-items: stretch; gap: 6px; margin-top: 8px; }
+    /* Compact controls: still tappable but shorter. */
+    .controls { flex-direction: column; align-items: stretch; gap: 6px; margin-top: 6px; }
     .control-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    /* أزرار كبيرة سهلة اللمس (‎≥44px) */
-    .control-buttons .btn { flex: none; padding: 11px 4px; font-size: 14px; min-height: 46px; }
+    .control-buttons .btn { flex: none; padding: 8px 4px; font-size: 13px; min-height: 42px; }
     .settings { justify-content: space-between; gap: 6px; }
-    .difficulty-select { padding: 9px 10px; min-height: 40px; }
-    .btn-icon { min-height: 40px; }
+    .difficulty-label { font-size: 12px; }
+    .difficulty-select { padding: 6px 8px; min-height: 36px; font-size: 13px; }
+    .btn-icon { min-height: 36px; padding: 6px 10px; }
 
-    .final-stats { grid-template-columns: repeat(2, 1fr); }
-    .stat-value { font-size: 20px; }
-    /* Perf: عطّل الاهتزاز والتوهجات الثقيلة على الهواتف الضعيفة */
+    /* Overlays scroll INSIDE game-area instead of growing the page. */
+    .overlay { padding: 12px; gap: 10px; overflow-y: auto; justify-content: center; }
+    .game-title { font-size: clamp(22px, 6vw, 30px); }
+    .game-subtitle { font-size: 13px; line-height: 1.5; }
+    .btn-lg { padding: 12px 28px; font-size: 16px; min-height: 46px; }
+    .hint { display: none; }
+    .final-stats { grid-template-columns: repeat(2, 1fr); width: min(100%, 300px); gap: 8px; }
+    .stat { padding: 8px; }
+    .stat-value { font-size: 19px; }
+
+    /* History opens as inner scroll, never page scroll. */
+    .history-panel { margin-top: 6px; max-height: 26vh; max-height: 26dvh; overflow-y: auto; flex: 0 0 auto; }
+
     .game-area.shake, .game-area.shake-hard { animation-duration: 0.22s; }
 }
 

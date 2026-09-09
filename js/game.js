@@ -536,6 +536,8 @@ class HandballGoalkeeperGame {
         // سرعة ظهور الأهداف حسب الصعوبة المختارة (مللي ثانية بين هدف وآخر)
         this.targetSpawnRate = { easy: 1400, medium: 1000, hard: 700 }[this.difficulty];
         this.targetManager.clearTargets();  // امسح أهداف الجولة السابقة
+        // Re-sync canvas to its CSS box (URL bar show/hide changes dvh).
+        this.resizeCanvas();
         this.clearCanvas();                 // نظف لوحة الرسم
         this.drawGoal();                    // ارسم المرمى من جديد
         this.updateHUD();                   // حدّث النقاط المعروضة
