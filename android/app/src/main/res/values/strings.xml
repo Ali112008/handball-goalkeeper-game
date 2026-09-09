@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Handball Keeper</string>
+    <string name="title_activity_main">Handball Keeper</string>
+    <string name="package_name">com.ali.handballkeeper</string>
+    <string name="custom_url_scheme">com.ali.handballkeeper</string>
+</resources>

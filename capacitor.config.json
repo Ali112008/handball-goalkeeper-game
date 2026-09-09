@@ -1,0 +1,12 @@
+{
+  "appId": "com.ali.handballkeeper",
+  "appName": "Handball Keeper",
+  "webDir": "dist",
+  "backgroundColor": "#0f1626",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0f1626",
+    "captureInput": false,
+    "webContentsDebuggingEnabled": false
+  }
+}

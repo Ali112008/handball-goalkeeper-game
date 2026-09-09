@@ -4,3 +4,16 @@ dist
 *.local
 
 .vercel
+
+# --- Capacitor / Android build artifacts (source under android/ IS committed) ---
+android/.gradle
+android/build
+android/app/build
+android/local.properties
+android/.idea
+android/app/.cxx
+android/capacitor-cordova-android-plugins/build
+*.apk
+*.aab
+*.keystore
+*.jks
