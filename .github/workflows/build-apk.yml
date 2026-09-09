@@ -17,7 +17,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -33,6 +33,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Ensure required Android SDK components
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" || true
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
 
       - name: Sync Capacitor (copy dist into android/)
         run: npx cap sync android
