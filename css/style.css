@@ -1,0 +1,725 @@
+/* ============================================================
+   HANDBALL KEEPER — ثيم رياضي داكن حديث
+   متجاوب بالكامل مع الهواتف (Mobile-First Friendly)
+   ============================================================ */
+
+/* 📚 درس — متغيرات CSS (--var):
+   نعرّف الألوان مرة واحدة هنا ثم نستخدمها في كل مكان
+   بتغيير واحد نغيّر الثيم كله! عادة احترافية مهمة. */
+:root {
+    --bg-dark: #0f1626;              /* خلفية داكنة */
+    --bg-panel: rgba(255, 255, 255, 0.06);   /* لوحات شبه شفافة (زجاجية) */
+    --bg-panel-solid: #1a2438;       /* لوحات معتمة (للقوائم المنسدلة) */
+    --accent: #00e5a0;               /* اللون الرئيسي: أخضر نيوني */
+    --accent-dark: #00b380;          /* نسخة أغمق منه (لتدرجات الأزرار) */
+    --danger: #ff4757;               /* أحمر التحذيرات */
+    --warning: #ffb020;              /* برتقالي الإيقاف المؤقت */
+    --gold: #ffd700;                 /* ذهبي الكرات الإضافية */
+    --text: #f2f5ff;                 /* لون النص الأساسي */
+    --text-dim: #8b97b5;             /* لون النصوص الثانوية (خافت) */
+    --radius: 14px;                  /* انحناء الحواف الموحد */
+}
+
+/* 📚 درس — * = "الكل": إعادة ضبط موحدة لكل العناصر
+   margin/padding = 0: نزيل الهوامش الافتراضية غير المتوقعة
+   box-sizing: border-box: تجعل الحشوة والحدود تُحسب داخل
+   العرض/الارتفاع المحدد — يجعل الحسابات منطقية!
+   tap-highlight-color: يزيل "وميض" النقر الأزرق على الهواتف */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body { height: 100%; }
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    /* 📚 درس — radial-gradient: تدرج "دائري" ينتشر من نقطة
+       هنا: أفتح أعلى اليسار → أغمق للخارج = إحساس عمق */
+    background: radial-gradient(ellipse at 20% 0%, #1c2a4a 0%, var(--bg-dark) 60%);
+    display: flex;               /* Flexbox لتوسيط المحتوى */
+    justify-content: center;      /* أفقياً */
+    align-items: center;         /* وعمودياً */
+    min-height: 100vh;           /* 100vh = ارتفاع الشاشة كاملة */
+    padding: 10px;
+    color: var(--text);
+    overflow-x: hidden;          /* امنع التمرير الأفقي غير المقصود */
+}
+
+/* ===== الحاوية الرئيسية ===== */
+.game-container {
+    width: 100%;
+    /* 📚 درس — max-width + width:100%:
+       المعادلة الذهبية للاستجابة — تملأ الشاشات الصغيرة
+       ولا تتمدد بلا حدود على الشاشات الكبيرة */
+    max-width: 860px;
+    background: linear-gradient(160deg, rgba(30, 42, 68, 0.92), rgba(16, 22, 38, 0.96));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius);
+    padding: 14px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);   /* ظل عميق = إحساس "طفو" */
+    backdrop-filter: blur(8px);                    /* تأثير الزجاج الضبابي! */
+}
+
+/* ===== لوحة المعلومات (HUD) ===== */
+.hud {
+    /* 📚 درس — CSS Grid مع repeat(4, 1fr):
+       4 أعمدة متساوية (1fr = "جزء واحد متساوٍ") — مثالية
+       لشريط إحصائيات. تجاوب بلا media queries إضافية! */
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;                    /* مسافة بين الخلايا */
+    margin-bottom: 12px;
+}
+
+.hud-item {
+    background: var(--bg-panel);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 8px 4px;
+    display: flex;
+    flex-direction: column;      /* عمودي: التسمية فوق القيمة */
+    align-items: center;         /* توسيط أفقي */
+    min-width: 0;                /* 📚 مهم مع Grid: يمنع تجاوز النصوص */
+}
+
+.hud-label {
+    font-size: 11px;
+    letter-spacing: 1.5px;       /* تباعد الحروف = مظهر أنيق */
+    text-transform: uppercase;    /* حروف كبيرة */
+    color: var(--text-dim);
+}
+
+.hud-value {
+    /* 📚 درس — clamp(الحد الأدنى, المفضل, الحد الأقصى):
+       حجم الخط الذكي! يكبر مع الشاشات ويصغر معها تلقائياً
+       بلا media queries — أعظم إضافة حديثة للاستجابة */
+    font-size: clamp(18px, 4.5vw, 26px);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;  /* أرقام بعرض ثابت — لا "ترقص" */
+    line-height: 1.15;
+}
+
+.hud-timer .hud-value { color: var(--accent); }
+/* 📚 درس — سلسلة انتقاء متتالية:
+   عندما يحمل timerBox class "warning" AND قيمة .hud-value
+   داخل .hud-timer → لون أحمر + أنيميشن نبض */
+.hud-timer.warning .hud-value { color: var(--danger); animation: pulse .6s infinite alternate; }
+#streak { color: var(--gold); }
+
+/* 📚 درس — keyframes + animation:
+   keyframes يعرّف "مراحل" الحركة، و animation يشغلها.
+   alternate = ذهاب وعودة (نبض بدل وميض) */
+@keyframes pulse { from { opacity: 1; } to { opacity: 0.45; } }
+
+/* ===== منطقة اللعب والكانفاس ===== */
+.game-area {
+    position: relative;          /* 📚 مهم: مرجع تموضع الطبقات overlays */
+    border-radius: 12px;
+    overflow: hidden;            /* قص ما يتجاوز الحدود */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), inset 0 0 40px rgba(0, 0, 0, 0.2);
+}
+
+#gameCanvas {
+    display: block;              /* يزيل فجوة أسفل العناصر inline */
+    width: 100%;                  /* يملأ العرض المتاح (استجابة!) */
+    height: auto;
+    aspect-ratio: 4 / 3;          /* 📚 درس — aspect-ratio:
+                                     يحافظ على نسبة 4:3 مهما تغير العرض
+                                     بلا حيل padding القديمة! */
+    /* 📚 درس — touch-action: يمنع المتصفح من "سرقة" اللمس
+       للتمرير/التكبير — النقر يصل للعبة فوراً على الهواتف */
+    touch-action: manipulation;
+    cursor: crosshair;            /* مؤشر التصويب */
+    background: #0b1220;
+}
+
+/* ===== الطبقات (Overlays) =====
+   📚 درس — طبقات فوق الكانفاس:
+   position: absolute + inset: 0 = "غطِّ كل منطقة اللعب"
+   (inset اختصار لـ top/right/bottom/left معاً — حديث وأنيق) */
+.overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;      /* عناصر عمودية */
+    align-items: center;         /* توسيط أفقي */
+    justify-content: center;     /* وتوسيط عمودي */
+    gap: 14px;                   /* مسافات متساوية بين العناصر */
+    text-align: center;
+    background: rgba(10, 15, 28, 0.88);   /* غلالة داكنة شفافة */
+    backdrop-filter: blur(4px);           /* زجاج ضبابي خلفها */
+    padding: 20px;
+    z-index: 5;                 /* 📚 فوق الكانفاس (رقم أعلى = أقرب لك) */
+    transition: opacity 0.25s ease;       /* ظهور/اختفاء ناعم */
+}
+
+/* class "hidden" تخفي الطبقة — يتحكم بها الجافاسكريبت
+   نستخدم opacity + visibility بدل display:none حتى تعمل
+   الانتقالات الناعمة (fade) بدلاً من الاختفاء الفوري */
+.overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: scale(0.95);
+}
+
+.game-title {
+    /* 📚 درس — نص متدرج اللون (Gradient Text):
+       اجعل الخلفية تدرجاً → قصّها على شكل النص
+       (background-clip: text) → اجعل لون النص شفافاً
+       = نص قوس قزح أنيق! */
+    font-size: clamp(26px, 6vw, 42px);
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    background: linear-gradient(90deg, var(--accent), #6ee7ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.game-subtitle { font-size: clamp(13px, 3vw, 16px); color: var(--text-dim); line-height: 1.6; }
+
+/* ألوان الكلمات المميزة في التعليمات */
+.t-green { color: var(--accent); }
+.t-red { color: var(--danger); }
+.t-gold { color: var(--gold); }
+
+.hint { font-size: 12px; color: var(--text-dim); }
+/* 📚 درس — عنصر kbd: مخصص أصلاً لمفاتيح لوحة التحكم */
+kbd {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+}
+
+/* العد التنازلي — خلفية أخف حتى يُرى الملعب خلفه */
+#countdownOverlay { background: rgba(10, 15, 28, 0.6); }
+.countdown {
+    font-size: clamp(70px, 22vw, 130px);
+    font-weight: 900;
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(0, 229, 160, 0.5);   /* 📚 توهج نيوني حول النص! */
+    animation: countPop 0.9s ease infinite;
+}
+/* أنيميشن "القفزة": صغير شفاف → يكبر ويظهر → يستقر */
+@keyframes countPop {
+    0% { transform: scale(0.4); opacity: 0; }
+    40% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* شاشة النهاية */
+.over-title { font-size: clamp(24px, 5vw, 34px); font-weight: 900; }
+
+.final-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(120px, 1fr));   /* عمودان بمعدل أدنى */
+    gap: 10px;
+    width: min(100%, 340px);   /* 📚 min(): الأصغر بين قيمتين — لا يتجاوز 340px */
+}
+
+.stat {
+    background: var(--bg-panel);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+
+/* ===== الأزرار ===== */
+.btn {
+    border: none;
+    border-radius: 10px;
+    /* 📚 منطقة لمس مريحة: ارتفاع إجمالي لا يقل عن ~44px
+       (المعيار الموصى به للأصابع على الهواتف) */
+    padding: 12px 18px;
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    /* 📚 درس — transition: تجعل التغييرات "تتحرك" بنعومة
+       بدلاً من القفز الفوري — 150ms من transform والفلتر */
+    transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    user-select: none;            /* امنع تحديد النص عند النقر السريع */
+}
+
+/* 📚 درس — :active لحظة الضغط (للمس أفضل من hover!) */
+.btn:active { transform: scale(0.95); }
+
+/* 📚 درس — @media (hover: hover):
+   تأثيرات التحويم فقط على الأجهزة ذات الماوس —
+   على اللمس قد تبقى "عالقة" بعد النقر! */
+@media (hover: hover) { .btn:hover { filter: brightness(1.15); transform: translateY(-1px); } }
+
+/* أزرار ملونة بتدرجات — كل نوع بلون وظيفي */
+.btn-primary { background: linear-gradient(135deg, #00c887, var(--accent-dark)); }   /* أخضر */
+.btn-warning { background: linear-gradient(135deg, #ffa726, var(--warning)); }        /* برتقالي */
+.btn-danger  { background: linear-gradient(135deg, #ff6b6b, var(--danger)); }        /* أحمر */
+.btn-lg { padding: 16px 38px; font-size: 18px; min-height: 52px; }   /* الزر الكبير */
+.btn-icon { padding: 10px 14px; font-size: 16px; background: var(--bg-panel-solid); }
+
+/* ===== شريط التحكم ===== */
+.controls {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;             /* 📚 السماح بالالتفاف لعدة صفوف على الشاشات الضيقة */
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.control-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.settings { display: flex; align-items: center; gap: 8px; }
+
+.difficulty-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+}
+
+.difficulty-select {
+    background: var(--bg-panel-solid);
+    color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* ===== سجل المحاولات (History Panel) ===== */
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-height: 34px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+@media (hover: hover) { .btn-small:hover { filter: brightness(1.15); } }
+.btn-small:active { transform: scale(0.95); }
+
+.history-panel {
+    display: none;
+    margin-top: 10px;
+    background: var(--bg-panel);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 10px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+.history-panel.open { display: block; }
+
+.history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.history-title { font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.history-title b { color: var(--gold); font-size: 15px; }
+
+.history-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0;
+    margin: 0;
+}
+.try-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+.try-score {
+    font-weight: 800;
+    font-size: 15px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+.try-meta { color: var(--text-dim); text-align: right; }
+.try-empty {
+    justify-content: center;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+/* ============================================================
+   📚 درس ضخم — Media Queries (قلب التصميم المتجاوب!)
+   ============================================================
+   @media = "قواعد شرطية": تُطبق فقط عندما يتحقق الشرط.
+   هنا: "إذا كان عرض الشاشة 520 بكسل أو أقل" طبق ما يلي —
+   أي هواتف صغيرة فقط، الشاشات الكبيرة لا تتأثر إطلاقاً. */
+@media (max-width: 520px) {
+    body { padding: 6px; align-items: stretch; }      /* املأ الارتفاع — لا وسَط زائد يهدر المساحة */
+    html, body { height: 100%; }
+
+    /* الحاوية أصبحت عموداً يملأ الشاشة كاملة، والمنطقة الوسطى
+       تتمدد لتستهلك كل المساحة الفارغة المتبقية (صفر هدر!) */
+    .game-container {
+        padding: 10px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+    }
+    .hud { flex: 0 0 auto; }          /* HUD ثابت في الأعلى */
+    .controls { flex: 0 0 auto; }     /* وشريط التحكم ثابت في الأسفل */
+
+    /* منطقة اللعب تتمدد لتأخذ كل المساحة المتبقية بينهما */
+    .game-area { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; }
+
+    /* الكانفاس يملأ المنطقة كلها (عرضاً وارتفاعاً) — فيكبر المرمى
+       والأهداف ليملآا شاشة الهاتف بدلاً من بقاء صندوق 4:3 صغير.
+       الحجم الداخلي يضبطه الجافاسكريبت (resizeCanvas) تلقائياً. */
+    #gameCanvas {
+        width: 100%;
+        height: 100%;
+        aspect-ratio: auto;   /* نتخلى عن نسبة 4:3 الثابتة حتى نملأ الارتفاع */
+        max-height: none;
+    }
+
+    /* HUD مضغوط: خطوط أصغر وأرقام أصغر */
+    .hud { grid-template-columns: repeat(4, 1fr); gap: 5px; }
+    .hud-label { font-size: 9px; letter-spacing: 0.5px; }
+    .hud-value { font-size: 17px; }
+
+    /* 📚 درس — العمود بدل الصف:
+       على الشاشة الضيقة نرتب عناصر التحكم عمودياً */
+    .controls { flex-direction: column; align-items: stretch; gap: 8px; }
+    .control-buttons { justify-content: space-between; }
+    /* flex: 1 = الأزرار تتقاسم العرض بالتساوي — أزرار كبيرة سهلة اللمس */
+    .control-buttons .btn { flex: 1; padding: 12px 6px; font-size: 14px; min-height: 46px; }
+    .settings { justify-content: space-between; }
+
+    .final-stats { grid-template-columns: repeat(2, 1fr); }
+    .stat-value { font-size: 20px; }
+}
+
+/* 📚 درس — استعلام مركّب: الهاتف بالوضع الأفقي
+   (شاشة قصيرة + عرض أفقي) نضغط كل شيء رأسياً حتى لا يحتاج تمريراً */
+@media (max-height: 520px) and (orientation: landscape) {
+    body { align-items: flex-start; }
+    .game-container { padding: 8px; }
+    .hud { margin-bottom: 8px; }
+    .hud-item { padding: 4px; }
+    .hud-value { font-size: 16px; }
+    #gameCanvas { max-height: 62vh; }   /* كانفاس يأخذ أغلب الارتفاع */
+    .controls { margin-top: 8px; }
+    .control-buttons .btn { padding: 8px 12px; font-size: 12px; }
+    .hint { display: none; }             /* إخفاء غير الضروري يوفر مساحة */
+}
+
+/* 📚 درس — prefers-reduced-motion (إتاحة الوصول):
+   بعض المستخدمين (حساسية الحركة) يطلبون تقليل الحركات من
+   إعدادات نظامهم — نحترم ذلك ونعطل كل الأنيميشن احتراماً لهم */
+@media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+}
+.stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+.stat-value { font-size: 26px; font-weight: 800; }
+
+/* شارة "رقم قياسي جديد" الذهبية النابضة */
+.new-best {
+    color: var(--gold);
+    font-weight: 800;
+    font-size: clamp(16px, 4vw, 20px);
+    animation: pulse 0.8s infinite alternate;
+}
+
+/* ============================================================
+   UI EFFECTS — مؤثرات بصرية محسنة
+   ============================================================ */
+
+/* --- Screen Shake --- */
+@keyframes shake {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-5px, -3px); }
+    20% { transform: translate(5px, 2px); }
+    30% { transform: translate(-4px, 4px); }
+    40% { transform: translate(4px, -2px); }
+    50% { transform: translate(-3px, 1px); }
+    60% { transform: translate(3px, -3px); }
+    70% { transform: translate(-2px, 3px); }
+    80% { transform: translate(2px, -1px); }
+    90% { transform: translate(-1px, 2px); }
+}
+@keyframes shakeHard {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-8px, -5px); }
+    20% { transform: translate(8px, 4px); }
+    30% { transform: translate(-7px, 6px); }
+    40% { transform: translate(6px, -4px); }
+    50% { transform: translate(-5px, 3px); }
+    60% { transform: translate(5px, -5px); }
+    70% { transform: translate(-4px, 5px); }
+    80% { transform: translate(4px, -2px); }
+    90% { transform: translate(-2px, 3px); }
+}
+.game-area.shake { animation: shake 0.3s ease-out; }
+.game-area.shake-hard { animation: shakeHard 0.4s ease-out; }
+
+/* --- Flash Overlay (red/gold/green flash across the screen) --- */
+.flash-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0;
+    border-radius: 12px;
+}
+.flash-overlay.active {
+    animation: flashPulse 0.4s ease-out forwards;
+}
+@keyframes flashPulse {
+    0% { opacity: 0.55; }
+    100% { opacity: 0; }
+}
+.flash-red { background: radial-gradient(circle at center, rgba(255, 71, 87, 0.6), rgba(255, 71, 87, 0.1)); }
+.flash-gold { background: radial-gradient(circle at center, rgba(255, 215, 0, 0.55), rgba(255, 215, 0, 0.08)); }
+.flash-green { background: radial-gradient(circle at center, rgba(0, 229, 160, 0.4), rgba(0, 229, 160, 0.05)); }
+
+/* --- Combo / Milestone Popup --- */
+.combo-popup {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.3);
+    z-index: 15;
+    pointer-events: none;
+    font-weight: 900;
+    text-align: center;
+    opacity: 0;
+    text-shadow: 0 0 30px currentColor, 0 2px 8px rgba(0,0,0,0.6);
+    white-space: nowrap;
+}
+.combo-popup.show {
+    animation: comboIn 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes comboIn {
+    0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+    15% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+    30% { transform: translate(-50%, -50%) scale(0.95); opacity: 1; }
+    45% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+    100% { transform: translate(-50%, -60%) scale(1); opacity: 0; }
+}
+
+/* --- Timer Drain Bar --- */
+.timer-bar-wrap {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+}
+.timer-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #6ee7ff);
+    border-radius: 2px;
+    width: 100%;
+    transition: width 1s linear;
+}
+.hud-timer.warning .timer-bar {
+    background: linear-gradient(90deg, var(--danger), #ff6b6b);
+}
+
+/* --- Streak Glow on HUD --- */
+.hud-item.streak-active {
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.35), inset 0 0 8px rgba(255, 215, 0, 0.1);
+    border-color: rgba(255, 215, 0, 0.3);
+    animation: streakPulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes streakPulse {
+    from { box-shadow: 0 0 12px rgba(255, 215, 0, 0.25), inset 0 0 6px rgba(255, 215, 0, 0.08); }
+    to { box-shadow: 0 0 24px rgba(255, 215, 0, 0.5), inset 0 0 12px rgba(255, 215, 0, 0.15); }
+}
+.hud-item.streak-x3 {
+    box-shadow: 0 0 20px rgba(0, 229, 160, 0.4), inset 0 0 10px rgba(0, 229, 160, 0.12);
+    border-color: rgba(0, 229, 160, 0.35);
+}
+
+/* --- Score Pop Animation --- */
+.hud-value.score-pop {
+    animation: scorePop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes scorePop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+.hud-value.score-pop-negative {
+    animation: scorePopNeg 0.35s ease-out;
+}
+@keyframes scorePopNeg {
+    0% { transform: scale(1); color: inherit; }
+    30% { transform: scale(1.15); color: var(--danger); }
+    100% { transform: scale(1); color: inherit; }
+}
+
+/* --- Overlay Transition Polish --- */
+.overlay { transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s; }
+
+/* --- Slow Motion Indicator --- */
+.slowmo-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 12;
+    pointer-events: none;
+    font-size: clamp(12px, 2.5vw, 16px);
+    font-weight: 800;
+    color: var(--gold);
+    text-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+    opacity: 0;
+    transform: translateY(-5px);
+    transition: opacity 0.25s, transform 0.25s;
+}
+.slowmo-indicator.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* --- Milestone Badge (bottom of canvas) --- */
+.milestone-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    pointer-events: none;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 20px;
+    padding: 4px 16px;
+    font-size: clamp(11px, 2vw, 14px);
+    font-weight: 700;
+    color: var(--gold);
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+    transition: opacity 0.3s, transform 0.3s;
+    white-space: nowrap;
+}
+.milestone-badge.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* --- Funny taunt (comment under the canvas) ---
+   شفاف تماماً — لا يحجب الكرات خلفه أبداً، نص بظل فقط */
+.taunt {
+    position: absolute;
+    bottom: 44px;
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    z-index: 12;
+    pointer-events: none;
+    background: transparent;
+    border: none;
+    padding: 2px 8px;
+    font-size: clamp(12px, 2.6vw, 16px);
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.25s;
+    white-space: nowrap;
+    max-width: 92%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.taunt.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* --- Bonus title / nickname (top of canvas) ---
+   شفاف — لا يحجب أي هدف خلفه */
+.bonus-title {
+    position: absolute;
+    top: 44px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px) scale(0.9);
+    z-index: 12;
+    pointer-events: none;
+    background: transparent;
+    border: none;
+    padding: 2px 10px;
+    font-size: clamp(13px, 3vw, 18px);
+    font-weight: 800;
+    color: var(--gold);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    white-space: nowrap;
+}
+.bonus-title.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+}
+
+/* --- Medals on the end-game screen --- */
+.final-medals {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px 0 4px;
+    min-height: 22px;
+}
+.medal-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    border-radius: 50%;
+    animation: medal-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+.medal-chip:nth-child(2) { animation-delay: 0.08s; }
+.medal-chip:nth-child(3) { animation-delay: 0.16s; }
+.medal-chip:nth-child(4) { animation-delay: 0.24s; }
+@keyframes medal-pop {
+    from { opacity: 0; transform: scale(0.3) rotate(-20deg); }
+    to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* --- Medals in the history list --- */
+.try-medals {
+    display: flex;
+    gap: 3px;
+    margin-top: 4px;
+}
+.mini-medal {
+    width: 18px;
+    height: 18px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}

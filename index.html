@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<!-- الصفحة الرئيسية للعبة — الهيكل فقط، المنطق في ملفات js/ -->
+<html lang="en">
+<head>
+    <!-- الترميز: حتى تظهر الحروف العربية والإيموجي بشكل صحيح -->
+    <meta charset="UTF-8">
+    <!-- 📚 درس — viewport: يجعل الصفحة متوافقة مع الهواتف
+         (بدونه ستعرض الهواتف الصفحة كأنها شاشة كمبيوتر مصغرة!)
+         maximum-scale + user-scalable: يمنعان التكبير العشوائي
+         أثناء اللعب بالنقر المزدوج على الهاتف -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- لون شريط المتصفح على الهواتف (لمسة جمالية) -->
+    <meta name="theme-color" content="#0f1626">
+    <title>Handball Goalkeeper Trainer</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- الحاوية العامة: لوحة اللعبة كلها -->
+    <div class="game-container">
+
+        <!-- ===== لوحة المعلومات (HUD): النقاط / الوقت / السلسلة / الأفضل =====
+             📚 HUD = Heads-Up Display: معلومات تظهر أثناء اللعب
+             بدون إزعاج اللاعب — مثلها في ألعاب الفيديو -->
+        <div class="hud">
+            <div class="hud-item">
+                <span class="hud-label">Score</span>          <!-- تسمية -->
+                <span class="hud-value" id="score">0</span>    <!-- القيمة (يتحدثها JS) -->
+            </div>
+            <div class="hud-item hud-timer" id="timerBox">    <!-- يتوهج أحمر تحت 10 ثوانٍ -->
+                <span class="hud-label">Time</span>
+                <span class="hud-value"><span id="time">60</span><small>s</small></span>
+                <div class="timer-bar-wrap"><div class="timer-bar" id="timerBar"></div></div>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">Streak</span>
+                <span class="hud-value" id="streak">0</span>  <!-- الإصابات المتتالية -->
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">Best</span>
+                <span class="hud-value" id="best">0</span>    <!-- أعلى نتيجة محفوظة -->
+            </div>
+        </div>
+
+        <!-- ===== منطقة اللعب =====
+             position: relative هنا مهم — تجعل الطبقات (overlays)
+             تتموضع داخلها بدقة فوق الكانفاس -->
+        <div class="game-area" id="gameArea">
+            <!-- 📚 درس — Canvas: لوحة الرسم.
+                 الحجم الداخلي 800×600 بكسل (دقة الرسم)،
+                 لكن CSS يتحكم بحجمها المعروض (استجابة للشاشات) -->
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+            <!-- Flash overlays for hit effects -->
+            <div class="flash-overlay flash-red" id="flashRed"></div>
+            <div class="flash-overlay flash-gold" id="flashGold"></div>
+            <div class="flash-overlay flash-green" id="flashGreen"></div>
+
+            <!-- Combo / Milestone popup -->
+            <div class="combo-popup" id="comboPopup"></div>
+
+            <!-- Slow motion indicator -->
+            <div class="slowmo-indicator" id="slowmoIndicator">⚡ SLOW-MO</div>
+
+            <!-- Milestone badge -->
+            <div class="milestone-badge" id="milestoneBadge"></div>
+
+            <!-- Funny taunt + bonus title (زخرفي فقط) -->
+            <div class="taunt" id="taunt"></div>
+            <div class="bonus-title" id="bonusTitle"></div>
+
+            <!-- شاشة العد التنازلي (3-2-1-انطلق) — مخفية افتراضياً -->
+            <div class="overlay hidden" id="countdownOverlay">
+                <div class="countdown" id="countdownText">3</div>
+            </div>
+
+            <!-- شاشة البداية / الإيقاف المؤقت (نفسها تخدم الحالتين!) -->
+            <div class="overlay" id="startOverlay">
+                <h1 class="game-title">🥅 Handball Keeper</h1>
+                <p class="game-subtitle">Tap the <b class="t-green">green</b> targets. Avoid the <b class="t-red">red</b> ones.<br>Catch <b class="t-gold">golden</b> balls for bonus points &amp; time!</p>
+                <button class="btn btn-primary btn-lg" id="startBtn">▶ Start Game</button>
+                <p class="hint">Tip: press <kbd>Space</kbd> to pause / resume</p>
+            </div>
+
+            <!-- شاشة النهاية مع الإحصائيات -->
+            <div class="overlay hidden" id="gameOverOverlay">
+                <h2 class="over-title">⏱ Time's Up!</h2>
+                <!-- شبكة الإحصائيات: النتيجة، الإصابات، الدقة، أفضل سلسلة -->
+                <div class="final-stats">
+                    <div class="stat"><span class="stat-label">Score</span><span class="stat-value" id="finalScore">0</span></div>
+                    <div class="stat"><span class="stat-label">Hits</span><span class="stat-value" id="finalHits">0</span></div>
+                    <div class="stat"><span class="stat-label">Accuracy</span><span class="stat-value" id="finalAccuracy">0%</span></div>
+                    <div class="stat"><span class="stat-label">Best Streak</span><span class="stat-value" id="finalStreak">0</span></div>
+                </div>
+                <!-- تظهر فقط عند تحقيق رقم قياسي جديد 🏆 -->
+                <div class="new-best hidden" id="newBest">🏆 New Best Score!</div>
+                <!-- أوسمة المحاولة (الشارات) -->
+                <div class="final-medals" id="finalMedals"></div>
+                <button class="btn btn-primary btn-lg" id="restartBtn">🔄 Play Again</button>
+            </div>
+        </div>
+
+        <!-- ===== شريط التحكم ===== -->
+        <div class="controls">
+            <div class="control-buttons">
+                <button class="btn btn-primary" id="startBtn2">▶ Start</button>
+                <button class="btn btn-warning" id="pauseBtn">⏸ Pause</button>
+                <button class="btn btn-danger" id="resetBtn">↺ Reset</button>
+            </div>
+            <div class="settings">
+                <!-- 📚 درس — select و option:
+                     قائمة منسدلة، و value للـ option المختار
+                     تصلنا في الجافاسكريبت عبر e.target.value -->
+                <label class="difficulty-label">Difficulty
+                    <select id="difficulty" class="difficulty-select">
+                        <option value="easy">Easy</option>
+                        <option value="medium" selected>Medium</option> <!-- المختار افتراضياً -->
+                        <option value="hard">Hard</option>
+                    </select>
+                </label>
+                <button class="btn btn-icon" id="soundBtn" title="Toggle sound">🔊</button>
+                <button class="btn btn-icon" id="historyToggle" title="Try history">📜</button>
+            </div>
+        </div>
+
+        <!-- ===== سجل المحاولات ===== -->
+        <div class="history-panel" id="historyPanel">
+            <div class="history-header">
+                <span class="history-title">Best: <b id="historyBest">0</b></span>
+                <button class="btn btn-small btn-danger" id="clearHistoryBtn">🗑 Clear</button>
+            </div>
+            <ul class="history-list" id="historyList"></ul>
+        </div>
+    </div>
+
+    <!-- 📚 درس — ترتيب تحميل السكربتات:
+         مع Vite نستخدم وحدة ES واحدة (js/main.js) تستورد كل شيء
+         داخلياً بالترتيب الصحيح — لا حاجة لأقواس script متعددة! -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
